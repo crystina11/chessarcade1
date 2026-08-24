@@ -1,0 +1,19 @@
+{
+  "name": "shank2-comic-arena",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shank2 style fast-paced 3D multiplayer shooter - COD deathmatch with P2P",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 4173"
+  },
+  "dependencies": {
+    "three": "^0.160.0",
+    "trystero": "^0.20.1",
+    "nipplejs": "^0.10.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}

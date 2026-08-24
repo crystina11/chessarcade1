@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SHANK ARENA // COMIC DEATHMATCH</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Rubik:wght@400;700;900&family=Black+Ops+One&display=swap" rel="stylesheet">
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    :root{
+      --yellow:#FFD000;
+      --orange:#FF4D00;
+      --red:#FF1A1A;
+      --ink:#0A0A0A;
+      --paper:#FFF8E7;
+      --comic-blue:#00D5FF;
+      --blood:#8B0000;
+    }
+    body{
+      background:#0a0a0a;
+      color:var(--paper);
+      font-family:'Rubik',sans-serif;
+      overflow:hidden;
+      overscroll-behavior:none;
+      user-select:none;
+    }
+    canvas{display:block;width:100vw;height:100vh}
+    #gameCanvas{position:fixed;inset:0;z-index:1}
+
+    /* Comic halftone overlay */
+    .halftone{
+      position:fixed;inset:0;pointer-events:none;z-index:2;
+      opacity:0.07;
+      background-image: radial-gradient(circle, #000 1px, transparent 1.5px);
+      background-size: 6px 6px;
+    }
+    .vignette{
+      position:fixed;inset:0;pointer-events:none;z-index:2;
+      background: radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.8) 100%);
+    }
+
+    /* UI LAYERS */
+    .ui-layer{
+      position:fixed;inset:0;z-index:10;
+      display:flex;align-items:center;justify-content:center;
+      background: radial-gradient(ellipse at center, rgba(20,20,20,0.95) 0%, rgba(0,0,0,0.98) 100%);
+    }
+    .hidden{display:none !important}
+
+    /* Comic panel style */
+    .comic-panel{
+      background: var(--paper);
+      color: var(--ink);
+      border: 6px solid var(--ink);
+      box-shadow: 12px 12px 0 var(--ink), 0 0 0 3px var(--yellow) inset;
+      position:relative;
+      transform: rotate(-0.5deg);
+      max-width:95vw;max-height:95vh;overflow:auto;
+    }
+    .comic-panel::before{
+      content:'';position:absolute;inset:0;
+      background-image: radial-gradient(circle, rgba(0,0,0,0.08) 1px, transparent 1.5px);
+      background-size: 8px 8px;pointer-events:none;
+    }
+    .comic-panel:nth-child(even){transform: rotate(0.7deg);}
+    .panel-header{
+      background: var(--ink);
+      color: var(--yellow);
+      font-family:'Bangers',cursive;
+      font-size:2.2rem;
+      letter-spacing:2px;
+      padding:12px 24px;
+      display:flex;justify-content:space-between;align-items:center;
+      text-transform:uppercase;
+      border-bottom:4px solid var(--ink);
+    }
+    .panel-header span{color:var(--orange)}
+    
+    .btn{
+      font-family:'Black Ops One',cursive;
+      background: var(--yellow);
+      color: var(--ink);
+      border:4px solid var(--ink);
+      padding:12px 24px;
+      font-size:1.1rem;
+      letter-spacing:1px;
+      text-transform:uppercase;
+      cursor:pointer;
+      box-shadow:6px 6px 0 var(--ink);
+      transition: all 0.08s;
+      position:relative;
+      display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    }
+    .btn:active{transform:translate(4px,4px);box-shadow:2px 2px 0 var(--ink)}
+    .btn:hover{filter:brightness(1.1);transform:translate(-1px,-1px);box-shadow:7px 7px 0 var(--ink)}
+    .btn-red{background:var(--red);color:white}
+    .btn-blue{background:var(--comic-blue);color:var(--ink)}
+    .btn-dark{background:var(--ink);color:var(--yellow)}
+    .btn-sm{padding:8px 14px;font-size:0.9rem;box-shadow:4px 4px 0 var(--ink)}
+    .btn:disabled{opacity:0.5;pointer-events:none}
+
+    input[type=text]{
+      background: white;
+      border:4px solid var(--ink);
+      padding:12px 16px;
+      font-family:'Rubik',sans-serif;
+      font-weight:900;
+      font-size:1.1rem;
+      width:100%;
+      box-shadow:4px 4px 0 var(--ink);
+      outline:none;
+    }
+    input[type=text]:focus{box-shadow:6px 6px 0 var(--ink);transform:translate(-1px,-1px)}
+
+    /* PROFILE */
+    #profileScreen .comic-panel{width:520px;padding:0}
+    .profile-body{padding:24px;display:flex;flex-direction:column;gap:18px;position:relative;z-index:1}
+    .avatar-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+    .avatar-card{
+      border:4px solid var(--ink);
+      background:white;
+      padding:8px;
+      cursor:pointer;
+      text-align:center;
+      box-shadow:4px 4px 0 var(--ink);
+      transition:all 0.1s;
+      position:relative;
+    }
+    .avatar-card.selected{ background:var(--yellow); transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--ink); border-color:var(--orange) }
+    .avatar-card:hover{transform:translate(-1px,-1px);box-shadow:5px 5px 0 var(--ink)}
+    .avatar-img{
+      width:100%;aspect-ratio:1;
+      background: linear-gradient(135deg, #222, #555);
+      border:3px solid var(--ink);
+      display:flex;align-items:center;justify-content:center;
+      font-family:'Bangers';font-size:2.5rem;color:var(--yellow);
+      position:relative;overflow:hidden;
+    }
+    .avatar-img::after{
+      content:'';position:absolute;inset:0;
+      background: repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(255,255,255,0.05) 4px, rgba(255,255,255,0.05) 8px);
+    }
+    .avatar-name{font-family:'Black Ops One';font-size:0.8rem;margin-top:6px;text-transform:uppercase}
+
+    /* MAIN MENU */
+    #mainMenu .comic-panel{width:760px;padding:0}
+    .menu-body{padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:20px;position:relative;z-index:1}
+    @media(max-width:700px){ .menu-body{grid-template-columns:1fr} }
+    .menu-card{
+      border:4px solid var(--ink);
+      background:white;
+      padding:16px;
+      box-shadow:6px 6px 0 var(--ink);
+      cursor:pointer;
+      transition:0.1s;
+      position:relative;
+    }
+    .menu-card:hover{transform:translate(-2px,-2px);box-shadow:8px 8px 0 var(--ink)}
+    .menu-card h3{font-family:'Bangers';font-size:1.8rem;color:var(--ink);letter-spacing:1px}
+    .menu-card p{font-size:0.9rem;color:#444;margin:6px 0 12px;font-weight:600}
+    .mode-badge{
+      display:inline-block;
+      background:var(--ink);color:var(--yellow);
+      font-family:'Black Ops One';font-size:0.7rem;
+      padding:3px 8px;transform:rotate(-2deg);
+    }
+
+    /* LOADOUT */
+    #loadoutScreen .comic-panel{width:900px;padding:0}
+    .loadout-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:20px;position:relative;z-index:1}
+    .weapon-category{
+      border:4px solid var(--ink);
+      background:white;
+      box-shadow:5px 5px 0 var(--ink);
+      padding:12px;
+    }
+    .weapon-category h4{
+      font-family:'Bangers';font-size:1.4rem;
+      background:var(--ink);color:var(--yellow);
+      margin:-12px -12px 12px;padding:8px 12px;
+      letter-spacing:1px;
+    }
+    .weapon-option{
+      border:3px solid var(--ink);
+      padding:8px 10px;
+      margin-bottom:8px;
+      cursor:pointer;
+      display:flex;justify-content:space-between;align-items:center;
+      background:#f8f8f8;
+      font-weight:800;
+      font-size:0.9rem;
+      transition:0.08s;
+    }
+    .weapon-option:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+    .weapon-option.selected{background:var(--yellow);box-shadow:3px 3px 0 var(--ink);transform:translate(-1px,-1px)}
+    .weapon-option small{font-weight:600;opacity:0.7}
+    .stat-bar{height:6px;background:#ddd;border:2px solid var(--ink);margin-top:4px;overflow:hidden}
+    .stat-fill{height:100%;background:var(--orange)}
+
+    /* LOBBY */
+    #lobbyScreen .comic-panel{width:700px;padding:0}
+    .lobby-body{padding:20px;display:flex;flex-direction:column;gap:16px;position:relative;z-index:1}
+    .room-code{
+      font-family:'Black Ops One';font-size:2rem;
+      background:var(--ink);color:var(--yellow);
+      padding:12px;text-align:center;
+      letter-spacing:4px;
+      border:4px dashed var(--yellow);
+      cursor:pointer;
+    }
+    .player-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow:auto}
+    .player-row{
+      display:flex;align-items:center;gap:10px;
+      border:3px solid var(--ink);padding:8px 12px;background:white;
+      font-weight:800;box-shadow:3px 3px 0 var(--ink);
+    }
+    .player-dot{width:12px;height:12px;border-radius:50%;background:var(--comic-blue);border:2px solid var(--ink)}
+
+    /* HUD */
+    #hud{
+      position:fixed;inset:0;z-index:5;pointer-events:none;
+    }
+    .hud-top{
+      position:absolute;top:0;left:0;right:0;
+      display:flex;justify-content:space-between;padding:12px;
+      pointer-events:none;
+    }
+    .hud-panel{
+      background:rgba(255,248,231,0.95);
+      border:4px solid var(--ink);
+      box-shadow:6px 6px 0 var(--ink);
+      padding:8px 12px;
+      color:var(--ink);
+      font-weight:900;
+      pointer-events:auto;
+    }
+    .health-bar{
+      width:200px;height:22px;
+      background:#222;border:3px solid var(--ink);
+      position:relative;overflow:hidden;
+    }
+    .health-fill{
+      height:100%;background:linear-gradient(90deg, var(--red), var(--orange));
+      transition:width 0.2s;
+      position:relative;
+    }
+    .health-fill::after{
+      content:'';position:absolute;inset:0;
+      background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(255,255,255,0.2) 8px, rgba(255,255,255,0.2) 16px);
+    }
+    .ammo-display{
+      font-family:'Black Ops One';font-size:1.8rem;
+      line-height:1;
+    }
+    .ammo-display small{font-size:0.9rem;opacity:0.7}
+    .weapon-slots{display:flex;gap:6px;margin-top:6px}
+    .w-slot{
+      border:3px solid var(--ink);padding:4px 8px;
+      background:white;font-size:0.75rem;font-weight:900;
+      min-width:60px;text-align:center;
+      opacity:0.6;
+    }
+    .w-slot.active{background:var(--yellow);opacity:1;transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+
+    .crosshair{
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      width:30px;height:30px;pointer-events:none;
+    }
+    .crosshair::before,.crosshair::after{
+      content:'';position:absolute;background:var(--ink);
+      box-shadow:0 0 0 2px var(--yellow);
+    }
+    .crosshair::before{width:2px;height:20px;left:14px;top:5px}
+    .crosshair::after{width:20px;height:2px;left:5px;top:14px}
+    .crosshair-dot{
+      position:absolute;width:6px;height:6px;background:var(--red);
+      border:2px solid var(--ink);left:50%;top:50%;transform:translate(-50%,-50%);
+      border-radius:50%;
+    }
+
+    .killfeed{
+      position:absolute;top:12px;right:12px;
+      display:flex;flex-direction:column;gap:6px;align-items:flex-end;
+      max-width:300px;
+    }
+    .kill-item{
+      background:var(--ink);color:var(--yellow);
+      border:3px solid var(--yellow);
+      padding:6px 10px;
+      font-family:'Black Ops One';font-size:0.8rem;
+      box-shadow:4px 4px 0 rgba(0,0,0,0.5);
+      animation: killIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+    }
+    @keyframes killIn{from{transform:translateX(100%) rotate(5deg) scale(0.5);opacity:0}to{transform:translateX(0) rotate(-1deg) scale(1);opacity:1}}
+
+    .hitmarker{
+      position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+      font-family:'Bangers';font-size:3rem;color:var(--yellow);
+      text-shadow:4px 4px 0 var(--ink), -2px -2px 0 var(--red);
+      pointer-events:none;opacity:0;
+    }
+    .hitmarker.show{animation: hitPop 0.25s forwards}
+    @keyframes hitPop{0%{opacity:0;transform:translate(-50%,-50%) scale(0.3) rotate(-10deg)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.4) rotate(5deg)}100%{opacity:0;transform:translate(-50%,-50%) scale(1) rotate(-2deg)}}
+
+    /* Mobile controls */
+    #mobileControls{
+      position:fixed;inset:0;z-index:6;pointer-events:none;
+      display:none;
+    }
+    @media(max-width:900px), (pointer:coarse){
+      #mobileControls{display:block}
+    }
+    .joystick-zone{
+      position:absolute;bottom:20px;width:140px;height:140px;
+      border-radius:50%;
+      background: radial-gradient(circle, rgba(255,208,0,0.15) 0%, rgba(0,0,0,0.2) 100%);
+      border:3px dashed rgba(255,208,0,0.4);
+      pointer-events:auto;
+    }
+    .joystick-zone.left{left:20px}
+    .joystick-zone.right{right:20px}
+    .mobile-btns{
+      position:absolute;bottom:180px;right:20px;
+      display:flex;flex-direction:column;gap:10px;
+      pointer-events:auto;
+    }
+    .m-btn{
+      width:64px;height:64px;
+      border-radius:50%;
+      border:4px solid var(--ink);
+      background:var(--paper);
+      color:var(--ink);
+      font-family:'Black Ops One';font-size:0.75rem;
+      font-weight:900;
+      box-shadow:4px 4px 0 var(--ink);
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;
+      touch-action:manipulation;
+    }
+    .m-btn:active{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+    .m-btn.primary{background:var(--yellow)}
+    .m-btn.danger{background:var(--red);color:white}
+    .m-btn.blue{background:var(--comic-blue)}
+
+    /* Comic effects */
+    .pow{
+      position:fixed;
+      font-family:'Bangers';font-size:4rem;
+      color:var(--yellow);
+      text-shadow:6px 6px 0 var(--ink), -2px -2px 0 var(--red);
+      transform:rotate(-10deg);
+      pointer-events:none;z-index:20;
+      animation: powAnim 0.6s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
+    }
+    @keyframes powAnim{
+      0%{transform:translate(-50%,-50%) rotate(-15deg) scale(0)}
+      60%{transform:translate(-50%,-50%) rotate(10deg) scale(1.3)}
+      100%{transform:translate(-50%,-50%) rotate(-5deg) scale(1);opacity:0}
+    }
+
+    /* Minimap */
+    .minimap{
+      width:140px;height:140px;
+      background:rgba(0,0,0,0.8);
+      border:4px solid var(--ink);
+      box-shadow:4px 4px 0 var(--ink);
+      position:relative;overflow:hidden;
+    }
+    .minimap-dot{
+      position:absolute;width:8px;height:8px;
+      border-radius:50%;border:2px solid white;
+      transform:translate(-50%,-50%);
+    }
+
+    /* Scrollbar comic */
+    ::-webkit-scrollbar{width:12px;height:12px}
+    ::-webkit-scrollbar-track{background:var(--paper);border-left:3px solid var(--ink)}
+    ::-webkit-scrollbar-thumb{background:var(--ink);border:2px solid var(--paper)}
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+  <div class="halftone"></div>
+  <div class="vignette"></div>
+
+  <!-- PROFILE SCREEN -->
+  <div id="profileScreen" class="ui-layer">
+    <div class="comic-panel">
+      <div class="panel-header">CHOOSE YOUR <span>FIGHTER</span> <span style="font-size:1rem;background:var(--yellow);color:var(--ink);padding:4px 8px;transform:rotate(2deg);display:inline-block">SHANK ARENA</span></div>
+      <div class="profile-body">
+        <div>
+          <label style="font-family:'Bangers';font-size:1.3rem;letter-spacing:1px">CALLSIGN</label>
+          <input id="playerNameInput" type="text" placeholder="ENTER NAME..." maxlength="12" value="PUNK-01" />
+        </div>
+        <div>
+          <label style="font-family:'Bangers';font-size:1.3rem;letter-spacing:1px">AVATAR</label>
+          <div class="avatar-grid" id="avatarGrid"></div>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:8px">
+          <button class="btn" style="flex:1" id="enterGameBtn">ENTER ARENA 🔥</button>
+        </div>
+        <div style="font-size:0.75rem;font-weight:700;opacity:0.7;line-height:1.3">
+          ⚡ P2P MULTIPLAYER - No server needed. Share room code with friends.<br>
+          🎮 DESKTOP: WASD Move, Mouse Aim/Shoot, SHIFT Sprint, SPACE Dodge/Jump, R Reload, Q Switch, G Grenade, F Tactical, E Pickup<br>
+          📱 MOBILE: Dual joysticks + action buttons
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN MENU -->
+  <div id="mainMenu" class="ui-layer hidden">
+    <div class="comic-panel">
+      <div class="panel-header">SHANK <span>ARENA</span> <div style="display:flex;gap:8px"><button class="btn btn-sm btn-dark" id="openLoadoutBtn">LOADOUT</button><button class="btn btn-sm btn-dark" id="openProfileBtn">PROFILE</button></div></div>
+      <div class="menu-body">
+        <div class="menu-card" id="playOnlineCard">
+          <div class="mode-badge">ONLINE P2P</div>
+          <h3>DEATHMATCH LOBBY</h3>
+          <p>Create or join a room. Up to 8 players. Host chooses map & mode. Share code.</p>
+          <div style="display:flex;gap:8px"><span class="btn btn-sm">CREATE ROOM</span><span class="btn btn-sm btn-blue">JOIN ROOM</span></div>
+          <div style="margin-top:10px;font-size:0.7rem;font-weight:800">🔥 REAL-TIME • NO LAG SWITCH • VOICE SOON</div>
+        </div>
+        <div class="menu-card" id="playBotCard">
+          <div class="mode-badge" style="background:var(--red)">OFFLINE</div>
+          <h3>SOLO MAYHEM</h3>
+          <p>Practice vs bots. Test all guns, arrows, grenades. Perfect your dodge.</p>
+          <div style="display:flex;gap:8px"><span class="btn btn-sm btn-red">BOT MATCH</span><span class="btn btn-sm">TRAINING</span></div>
+          <div style="margin-top:10px;font-size:0.7rem;font-weight:800">🤖 5 BOTS • 3 MAPS • INSTANT ACTION</div>
+        </div>
+        <div class="menu-card" id="gunGameCard">
+          <div class="mode-badge" style="background:var(--comic-blue)">NEW</div>
+          <h3>GUN GAME</h3>
+          <p>Kill to upgrade weapon. 14 weapons cycle. First to get rocket kill wins! COD style.</p>
+          <div class="btn btn-sm btn-dark">PLAY GUN GAME</div>
+        </div>
+        <div class="menu-card" id="mapPreviewCard">
+          <div class="mode-badge">3 MAPS</div>
+          <h3>ARENAS</h3>
+          <p><b>WAREHOUSE</b> - Close quarters<br><b>ROOFTOP</b> - Verticality + ziplines<br><b>TRAINYARD</b> - Long sightlines + cover</p>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <span class="btn btn-sm" data-map="warehouse">WAREHOUSE</span>
+            <span class="btn btn-sm" data-map="rooftop">ROOFTOP</span>
+            <span class="btn btn-sm" data-map="trainyard">TRAINYARD</span>
+          </div>
+        </div>
+      </div>
+      <div style="padding:12px 24px;background:var(--ink);color:var(--paper);font-size:0.75rem;font-weight:700;display:flex;justify-content:space-between;position:relative;z-index:1">
+        <span>NETLIFY READY • P2P via WebRTC • THREE.JS • MOBILE SUPPORT</span>
+        <span id="playerStatusDisplay">PUNK-01 • READY</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOADOUT -->
+  <div id="loadoutScreen" class="ui-layer hidden">
+    <div class="comic-panel">
+      <div class="panel-header">LOADOUT <span>CUSTOM</span> <button class="btn btn-sm btn-dark" id="closeLoadoutBtn">BACK</button></div>
+      <div class="loadout-grid" id="loadoutGrid"></div>
+      <div style="padding:16px;display:flex;justify-content:space-between;align-items:center;background:#eee;border-top:4px solid var(--ink);position:relative;z-index:1">
+        <div style="font-family:'Bangers';font-size:1.2rem">SELECTED: <span id="loadoutSummary">M4A1 + GLOCK + GRENADE</span></div>
+        <button class="btn" id="saveLoadoutBtn">SAVE & FIGHT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOBBY -->
+  <div id="lobbyScreen" class="ui-layer hidden">
+    <div class="comic-panel">
+      <div class="panel-header">LOBBY <span id="lobbyModeDisplay">DEATHMATCH</span> <button class="btn btn-sm btn-dark" id="leaveLobbyBtn">LEAVE</button></div>
+      <div class="lobby-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div>
+            <label style="font-family:'Bangers';font-size:1.1rem">ROOM CODE (CLICK TO COPY)</label>
+            <div class="room-code" id="roomCodeDisplay">----</div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <input id="joinCodeInput" type="text" placeholder="ENTER CODE" style="flex:1" maxlength="6"/>
+              <button class="btn btn-sm btn-blue" id="joinRoomBtn">JOIN</button>
+              <button class="btn btn-sm" id="createRoomBtn">NEW CODE</button>
+            </div>
+            <div style="margin-top:16px">
+              <label style="font-family:'Bangers'">GAME MODE</label>
+              <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+                <button class="btn btn-sm modeBtn active" data-mode="ffa">FFA</button>
+                <button class="btn btn-sm modeBtn" data-mode="tdm">TEAM DM</button>
+                <button class="btn btn-sm modeBtn" data-mode="gungame">GUN GAME</button>
+                <button class="btn btn-sm modeBtn" data-mode="arrow">ARROW ONLY</button>
+              </div>
+            </div>
+            <div style="margin-top:12px">
+              <label style="font-family:'Bangers'">MAP</label>
+              <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
+                <button class="btn btn-sm mapBtn active" data-map="warehouse">WAREHOUSE</button>
+                <button class="btn btn-sm mapBtn" data-map="rooftop">ROOFTOP</button>
+                <button class="btn btn-sm mapBtn" data-map="trainyard">TRAINYARD</button>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label style="font-family:'Bangers'">PLAYERS (<span id="playerCount">1</span>/8)</label>
+            <div class="player-list" id="playerList"></div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <button class="btn" style="flex:1" id="startMatchBtn">START MATCH</button>
+              <button class="btn btn-sm btn-red" id="readyBtn">READY</button>
+            </div>
+            <div style="margin-top:8px;font-size:0.7rem;font-weight:700;opacity:0.7">P2P status: <span id="p2pStatus">Connecting to trackers...</span></div>
+          </div>
+        </div>
+        <div style="font-size:0.75rem;background:var(--yellow);border:3px solid var(--ink);padding:8px;font-weight:800">
+          💡 TIP: For online play, both players open site, one creates room and shares code. Uses BitTorrent trackers for P2P - no server needed, Netlify friendly. If trackers slow, try bot match.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HUD -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div>
+        <div class="hud-panel" style="display:flex;gap:12px;align-items:center">
+          <div>
+            <div style="font-size:0.7rem;opacity:0.7">HEALTH</div>
+            <div class="health-bar"><div class="health-fill" id="healthFill" style="width:100%"></div></div>
+            <div style="display:flex;gap:8px;margin-top:4px;font-size:0.7rem">
+              <span>❤️ <span id="healthText">100</span></span>
+              <span>🛡️ <span id="armorText">0</span></span>
+              <span>💀 <span id="killsText">0</span></span>
+            </div>
+          </div>
+          <div style="width:2px;height:50px;background:var(--ink)"></div>
+          <div>
+            <div class="ammo-display"><span id="ammoCurrent">30</span><small>/</small><span id="ammoReserve" style="font-size:1.1rem">90</span></div>
+            <div style="font-size:0.7rem;font-weight:800" id="weaponName">M4A1</div>
+            <div class="weapon-slots">
+              <div class="w-slot active" id="slotPrimary">M4</div>
+              <div class="w-slot" id="slotSecondary">GLOCK</div>
+              <div class="w-slot" id="slotLethal">GREN</div>
+              <div class="w-slot" id="slotTactical">SMOKE</div>
+            </div>
+          </div>
+        </div>
+        <div class="hud-panel" style="margin-top:8px;display:flex;gap:8px;align-items:center">
+          <div class="minimap" id="minimap"></div>
+          <div style="font-size:0.7rem;line-height:1.2">
+            <div style="font-family:'Bangers';font-size:1rem" id="mapNameDisplay">WAREHOUSE</div>
+            <div>MODE: <span id="modeDisplay">FFA</span></div>
+            <div>TIME: <span id="timeDisplay">05:00</span></div>
+            <div>ALIVE: <span id="aliveDisplay">1</span></div>
+            <div style="margin-top:6px"><button class="btn btn-sm" id="hudMenuBtn" style="pointer-events:auto">MENU</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="killfeed" id="killfeed"></div>
+    </div>
+    <div class="crosshair"><div class="crosshair-dot"></div></div>
+    <div class="hitmarker" id="hitmarker">HIT!</div>
+  </div>
+
+  <!-- Mobile Controls -->
+  <div id="mobileControls" class="hidden">
+    <div class="joystick-zone left" id="moveJoystick"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Bangers';opacity:0.5">MOVE</div></div>
+    <div class="joystick-zone right" id="aimJoystick"><div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-family:'Bangers';opacity:0.5">AIM • TAP TO SHOOT</div></div>
+    <div class="mobile-btns">
+      <button class="m-btn primary" id="mJump">JUMP</button>
+      <button class="m-btn blue" id="mDash">DODGE</button>
+      <button class="m-btn" id="mReload">RELOAD</button>
+      <button class="m-btn" id="mSwitch">SWITCH</button>
+      <button class="m-btn danger" id="mGrenade">GREN</button>
+      <button class="m-btn" id="mTactical">SMOKE</button>
+    </div>
+  </div>
+
+  <!-- PAUSE -->
+  <div id="pauseScreen" class="ui-layer hidden">
+    <div class="comic-panel" style="width:400px;padding:0">
+      <div class="panel-header">PAUSED</div>
+      <div style="padding:20px;display:flex;flex-direction:column;gap:10px;position:relative;z-index:1">
+        <button class="btn" id="resumeBtn">RESUME</button>
+        <button class="btn btn-blue" id="pauseLoadoutBtn">CHANGE LOADOUT</button>
+        <button class="btn btn-dark" id="pauseLobbyBtn">BACK TO LOBBY</button>
+        <button class="btn btn-red" id="quitBtn">QUIT TO MENU</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
